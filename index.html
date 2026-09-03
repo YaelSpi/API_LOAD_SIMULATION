@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Public API Load - Before and After the Dwell Floor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&family=Heebo:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F7FB;
+    --card:#FFFFFF;
+    --ink:#101528;
+    --ink-soft:#5A6480;
+    --grid:#DCE2EF;
+    --signal:#FF2E93;
+    --signal-soft:#FFE4F1;
+    --calm:#12897A;
+    --calm-soft:#DFF2EF;
+    --amber:#E39A16;
+    --shadow:0 1px 2px rgba(16,21,40,.06), 0 8px 24px -12px rgba(16,21,40,.18);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Heebo",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+    font-weight:400;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background-image:linear-gradient(var(--grid) 1px, transparent 1px),linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:32px 32px;
+    background-position:-1px -1px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 22px 72px}
+
+  .eyebrow{
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--signal);font-weight:700;margin:0 0 14px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow::after{content:"";height:1px;flex:1;background:var(--grid)}
+  h1{
+    font-family:"Rubik",system-ui,sans-serif;font-weight:800;
+    font-size:clamp(30px,5.2vw,52px);line-height:1.04;letter-spacing:-.02em;
+    margin:0 0 14px;max-width:22ch;
+  }
+  h1 em{font-style:normal;color:var(--signal)}
+  .deck{font-size:17px;color:var(--ink-soft);max-width:64ch;margin:0 0 34px;font-weight:300}
+  .deck b{font-weight:500;color:var(--ink)}
+
+  .panel{
+    background:var(--card);border:1px solid var(--grid);border-radius:14px;
+    box-shadow:var(--shadow);
+  }
+  .controls{padding:18px 20px;display:flex;flex-wrap:wrap;gap:26px;align-items:flex-end;margin-bottom:18px}
+  .ctl{flex:1 1 150px;min-width:146px}
+  .ctl label{
+    display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+    font-size:12.5px;color:var(--ink-soft);margin-bottom:7px;font-weight:500;
+  }
+  .ctl label span{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink);font-weight:700}
+  input[type=range]{
+    width:100%;-webkit-appearance:none;appearance:none;height:22px;background:transparent;cursor:pointer;margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--grid);border-radius:2px}
+  input[type=range]::-moz-range-track{height:3px;background:var(--grid);border-radius:2px}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--ink);border:3px solid #fff;box-shadow:0 0 0 1px var(--grid);margin-top:-7px;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;background:var(--ink);border:3px solid #fff;box-shadow:0 0 0 1px var(--grid)
+  }
+  input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--signal-soft),0 0 0 4px var(--signal)}
+  .btns{display:flex;gap:8px;flex:0 0 auto}
+  button{
+    font-family:"Heebo",sans-serif;font-size:13.5px;font-weight:500;
+    padding:9px 15px;border-radius:9px;border:1px solid var(--grid);
+    background:#fff;color:var(--ink);cursor:pointer;transition:.16s;
+  }
+  button:hover{border-color:var(--ink)}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.primary:hover{background:#000}
+  button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .lane{padding:0;overflow:hidden;display:flex;flex-direction:column}
+  .lane-head{padding:16px 20px 14px;border-bottom:1px solid var(--grid)}
+  .lane-tag{
+    font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;font-weight:700;margin-bottom:6px;
+  }
+  .lane--now .lane-tag{color:var(--signal)}
+  .lane--fix .lane-tag{color:var(--calm)}
+  .lane-head h2{font-family:"Rubik",sans-serif;font-size:19px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .lane-head p{margin:0;font-size:13px;color:var(--ink-soft);font-weight:300}
+  canvas{display:block;width:100%;height:172px}
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--grid)}
+  .metric{padding:13px 16px;border-right:1px solid var(--grid)}
+  .metric:last-child{border-right:none}
+  .metric .k{font-size:11.5px;color:var(--ink-soft);margin-bottom:3px;font-weight:400}
+  .metric .v{font-family:"JetBrains Mono",monospace;font-size:19px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+  .metric .u{font-size:11px;color:var(--ink-soft);font-family:"Heebo",sans-serif;font-weight:300}
+  .v--sig{color:var(--signal)}
+  .v--calm{color:var(--calm)}
+
+  .callout{
+    margin-top:18px;padding:16px 20px;display:flex;gap:14px;align-items:flex-start;
+    border-left:3px solid var(--signal);
+  }
+  .callout .num{
+    font-family:"JetBrains Mono",monospace;font-weight:700;font-size:26px;color:var(--signal);
+    line-height:1;padding-top:2px;white-space:nowrap;
+  }
+  .callout p{margin:0;font-size:14.5px;color:var(--ink-soft);font-weight:300}
+  .callout p b{color:var(--ink);font-weight:500}
+
+  h3{font-family:"Rubik",sans-serif;font-size:15px;font-weight:700;margin:44px 0 4px;letter-spacing:-.01em}
+  .sub{font-size:13.5px;color:var(--ink-soft);margin:0 0 16px;font-weight:300;max-width:72ch}
+
+  .strip{padding:20px}
+  .bars{display:flex;align-items:flex-end;gap:5px;height:104px;position:relative;padding-top:16px}
+  .bar{flex:1;background:var(--signal-soft);border-radius:3px 3px 0 0;position:relative;min-width:5px;
+       border-top:2px solid var(--signal);transition:height .25s}
+  .limit{position:absolute;inset-inline:0;border-top:1px dashed var(--ink-soft)}
+  .limit span{
+    position:absolute;inset-inline-start:0;top:-17px;font-family:"JetBrains Mono",monospace;
+    font-size:10.5px;color:var(--ink-soft);background:var(--card);padding-inline-end:6px;
+  }
+  .strip-foot{display:flex;justify-content:space-between;gap:16px;margin-top:12px;font-size:12.5px;color:var(--ink-soft);font-weight:300}
+  .strip-foot b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-weight:700}
+
+  .tl{position:relative;padding:26px 0 0}
+  .tl::before{content:"";position:absolute;top:34px;inset-inline:6px;height:1px;background:var(--grid)}
+  .tl-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;position:relative}
+  .dot{
+    width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid var(--grid);
+    margin:0 0 14px;position:relative;top:3px;
+  }
+  .node--before .dot{border-color:var(--signal);background:var(--signal)}
+  .node--key .dot{border-color:var(--calm);background:var(--calm)}
+  .node h4{
+    font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    margin:0 0 6px;color:var(--ink-soft);font-weight:700;
+  }
+  .node--before h4{color:var(--signal)}
+  .node--key h4{color:var(--calm)}
+  .node p{margin:0;font-size:12.8px;line-height:1.5;color:var(--ink-soft);font-weight:300}
+  .node p b{color:var(--ink);font-weight:500;display:block;margin-bottom:3px;font-size:13.2px}
+
+  .foot{
+    margin-top:40px;padding-top:16px;border-top:1px solid var(--grid);
+    font-size:12px;color:var(--ink-soft);font-weight:300;max-width:84ch;
+  }
+  .foot code{font-family:"JetBrains Mono",monospace;font-size:11.5px;background:#fff;border:1px solid var(--grid);padding:1px 5px;border-radius:4px}
+
+  @media (max-width:840px){
+    .lanes{grid-template-columns:1fr}
+    .tl-row{grid-template-columns:1fr;gap:20px}
+    .tl::before{display:none}
+    .dot{margin-bottom:8px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Public API · Load simulation</p>
+  <h1>Identical traffic in. <em>Two very different loads.</em></h1>
+  <p class="deck">
+    Today every incoming request reaches a SQL replica, so the load is set by the customer.
+    With a <b>dwell floor</b>, each cache key refreshes at most once per 10 seconds, which means
+    <b>the number of queries becomes a ceiling we choose rather than a forecast of customer behavior.</b>
+    Drag the polling interval and watch which side moves.
+  </p>
+
+  <div class="panel controls">
+    <div class="ctl">
+      <label for="acc">Heavy accounts <span id="accV">15</span></label>
+      <input type="range" id="acc" min="1" max="30" value="15">
+    </div>
+    <div class="ctl">
+      <label for="int">Polling interval <span id="intV">every 1s</span></label>
+      <input type="range" id="int" min="0" max="4" value="0">
+    </div>
+    <div class="ctl">
+      <label for="pg">Pages per full pull <span id="pgV">5</span></label>
+      <input type="range" id="pg" min="1" max="10" value="5">
+    </div>
+    <div class="ctl">
+      <label for="fl">Dwell floor <span id="flV">10s</span></label>
+      <input type="range" id="fl" min="0" max="2" value="1">
+    </div>
+    <div class="btns">
+      <button id="preset">June 24 scenario</button>
+      <button id="toggle" class="primary">Pause</button>
+    </div>
+  </div>
+
+  <div class="lanes">
+    <section class="panel lane lane--now">
+      <div class="lane-head">
+        <p class="lane-tag">Today</p>
+        <h2>Every request reaches the replica</h2>
+        <p>A 2-minute TTL cache, held in each node's own memory, rarely hit</p>
+      </div>
+      <canvas id="cA" aria-label="Simulation: all requests pass through to the SQL replica"></canvas>
+      <div class="metrics">
+        <div class="metric"><div class="k">Requests in</div><div class="v" id="reqA">9,000</div><div class="u">per minute</div></div>
+        <div class="metric"><div class="k">Queries to DB</div><div class="v v--sig" id="dbA">9,000</div><div class="u">per minute</div></div>
+        <div class="metric"><div class="k">CPU demand</div><div class="v v--sig" id="cpuA">94%</div><div class="u">of the replica</div></div>
+      </div>
+    </section>
+
+    <section class="panel lane lane--fix">
+      <div class="lane-head">
+        <p class="lane-tag">With a dwell floor</p>
+        <h2>A shared cache that caps the rate</h2>
+        <p>Keyed on change version, and no query before 10 seconds have passed</p>
+      </div>
+      <canvas id="cB" aria-label="Simulation: the cache absorbs most requests and only a few reach the replica"></canvas>
+      <div class="metrics">
+        <div class="metric"><div class="k">Requests in</div><div class="v" id="reqB">9,000</div><div class="u">per minute</div></div>
+        <div class="metric"><div class="k">Queries to DB</div><div class="v v--calm" id="dbB">900</div><div class="u">per minute</div></div>
+        <div class="metric"><div class="k">CPU demand</div><div class="v v--calm" id="cpuB">9%</div><div class="u">of the replica</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel callout" id="callout">
+    <div class="num" id="factor">10x</div>
+    <p id="calloutTxt">
+      <b>The incoming traffic is identical on both sides.</b> The only difference is what reaches the database.
+      Polling interval moves the left side and never touches the right, as long as it is denser than the floor.
+    </p>
+  </div>
+
+  <h3>No account looks guilty</h3>
+  <p class="sub">
+    This is the signature of the June 24 incident: the replica saturates, every account is individually
+    inside policy, and there is nobody to identify. A per-account limit cannot solve that. A floor can.
+  </p>
+  <div class="panel strip">
+    <div class="bars" id="bars"><div class="limit" id="limit" style="bottom:70%"><span>700 allowed</span></div></div>
+    <div class="strip-foot">
+      <span>Per account: <b id="perAcc">600</b> requests per minute</span>
+      <span>Total: <b id="total">9,000</b> requests per minute against shared replicas</span>
+    </div>
+  </div>
+
+  <h3>What changes, and when</h3>
+  <p class="sub">The first two waves are API-layer changes only. No new datastore, no customer-side change, and no pricing decision.</p>
+  <div class="tl">
+    <div class="tl-row">
+      <div class="node node--before">
+        <div class="dot"></div>
+        <h4>Before</h4>
+        <p><b>700/min for every account</b>Increases granted by support for free with no expiry. Enforcement only by hand, mid-incident.</p>
+      </div>
+      <div class="node">
+        <div class="dot"></div>
+        <h4>Wave 0 · weeks</h4>
+        <p><b>Shared cache and metering</b>Move from per-node memory to Redis, measure hit rate and query cost, alert on the limiter, fix the KB.</p>
+      </div>
+      <div class="node node--key">
+        <div class="dot"></div>
+        <h4>Wave 1 · weeks</h4>
+        <p><b>10-second dwell floor</b>Change-version keys, single-flight at invalidation, and a global bulkhead on the replica as a safety net.</p>
+      </div>
+      <div class="node">
+        <div class="dot"></div>
+        <h4>Wave 2 · measure</h4>
+        <p><b>See what is left</b>Report residual replica load, then decide what follows from data rather than in advance.</p>
+      </div>
+      <div class="node">
+        <div class="dot"></div>
+        <h4>Wave 3 · conditional</h4>
+        <p><b>Read model</b>A copy of alerts and tickets outside SQL, refreshed on changes only. Only if load remains.</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">
+    <b>How the numbers are derived.</b> Requests and queries are arithmetic: a full pull of alerts and tickets,
+    <code id="fPages">5</code> pages each, at the selected interval. Under the floor, every cache key refreshes at most
+    <code id="fRef">6</code> times per minute, which leaves page count as the only remaining multiplier.
+    CPU demand is illustrative, at <code>50ms CPU</code> per heavy query on <code>8 vCPU</code>. The calibration was
+    chosen so the default lands on the 96% measured during the June 24 incident. Real values can be extracted
+    from a replay over one week of logs, without touching production.
+  </p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const INTERVALS=[1,2,5,10,30], INT_LABELS=["every 1s","every 2s","every 5s","every 10s","every 30s"];
+  const FLOORS=[5,10,30], FLOOR_LABELS=["5s","10s","30s"];
+  const ENDPOINTS=2, CPU_MS=50, CAP_MS=8000;
+  const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const el=id=>document.getElementById(id);
+  const S={acc:15,int:0,pg:5,fl:1,running:!reduce};
+
+  function model(){
+    const interval=INTERVALS[S.int], floor=FLOORS[S.fl];
+    const keys=S.acc*ENDPOINTS*S.pg;
+    const reqMin=keys*(60/interval);
+    const dbMin=keys*Math.min(60/interval,60/floor);
+    return {interval,floor,keys,reqMin,dbMin,
+      perAcc:ENDPOINTS*S.pg*(60/interval),
+      cpuA:(reqMin/60)*CPU_MS/CAP_MS*100,
+      cpuB:(dbMin/60)*CPU_MS/CAP_MS*100};
+  }
+
+  const nf=n=>Math.round(n).toLocaleString("en-US");
+  const pf=n=>(n>=10?Math.round(n):n.toFixed(1))+"%";
+
+  let M=model();
+
+  function paintUI(){
+    M=model();
+    el("accV").textContent=S.acc;
+    el("intV").textContent=INT_LABELS[S.int];
+    el("pgV").textContent=S.pg;
+    el("flV").textContent=FLOOR_LABELS[S.fl];
+    el("reqA").textContent=nf(M.reqMin);
+    el("reqB").textContent=nf(M.reqMin);
+    el("dbA").textContent=nf(M.reqMin);
+    el("dbB").textContent=nf(M.dbMin);
+    el("cpuA").textContent=pf(M.cpuA);
+    el("cpuB").textContent=pf(M.cpuB);
+    el("perAcc").textContent=nf(M.perAcc);
+    el("total").textContent=nf(M.reqMin);
+    el("fPages").textContent=S.pg;
+    el("fRef").textContent=Math.round(60/M.floor);
+
+    const factor=M.reqMin/M.dbMin;
+    el("factor").textContent=(factor>=10?Math.round(factor):factor.toFixed(1))+"x";
+    el("calloutTxt").innerHTML= factor<1.05
+      ? "<b>The floor is inactive at this setting.</b> Polling is slower than the floor, so there is nothing to hold back. That is the point: a floor touches dense polling only, never ordinary use."
+      : "<b>The incoming traffic is identical on both sides.</b> The only difference is what reaches the database. Polling interval moves the left side and never touches the right, as long as it is denser than the floor.";
+
+    const bars=el("bars"), limit=el("limit");
+    while(bars.children.length-1<S.acc) bars.appendChild(Object.assign(document.createElement("div"),{className:"bar"}));
+    while(bars.children.length-1>S.acc) bars.removeChild(bars.lastChild);
+    const peak=Math.max(700,M.perAcc)*1.12;
+    limit.style.bottom=(700/peak*100)+"%";
+    for(let i=1;i<bars.children.length;i++){
+      const jitter=0.82+0.18*((Math.sin(i*12.9898)*43758.5453)%1+1)/2;
+      bars.children[i].style.height=Math.min(100,(M.perAcc*jitter/peak)*100)+"%";
+    }
+  }
+
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+      this.beginPath();this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);
+      this.arcTo(x+w,y+h,x,y+h,r);this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);
+      this.closePath();return this;
+    };
+  }
+
+  /* LTR flow: clients on the left, replica on the right */
+  function Lane(canvas,isFix){
+    const ctx=canvas.getContext("2d");
+    let W=0,H=0,dpr=1,parts=[],acc=0,flash=0,pulses=[];
+    function resize(){
+      dpr=Math.min(window.devicePixelRatio||1,2);
+      W=canvas.clientWidth; H=canvas.clientHeight;
+      canvas.width=W*dpr; canvas.height=H*dpr;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    const geo=()=>({srcX:26, memX:W*0.44, dbW:58, dbX:W-22-58});
+    function draw(dt){
+      const g=geo();
+      ctx.clearRect(0,0,W,H);
+
+      ctx.strokeStyle="#EDF0F7"; ctx.lineWidth=1;
+      for(let i=1;i<=3;i++){const y=H*i/4;ctx.beginPath();ctx.moveTo(g.srcX+10,y);ctx.lineTo(g.dbX-8,y);ctx.stroke();}
+
+      const n=Math.min(S.acc,12);
+      for(let i=0;i<n;i++){
+        const y=H/2+(i-(n-1)/2)*Math.min(13,(H-30)/n);
+        ctx.fillStyle="#C7CEDE"; ctx.beginPath();
+        ctx.roundRect(g.srcX-6,y-3,12,6,2); ctx.fill();
+      }
+      ctx.save();
+      ctx.font='500 10px "JetBrains Mono",monospace'; ctx.fillStyle="#8B93A9";
+      ctx.textAlign="center"; ctx.fillText("clients",g.srcX+1,H-7); ctx.restore();
+
+      if(isFix){
+        ctx.strokeStyle="#12897A"; ctx.lineWidth=2; ctx.setLineDash([5,5]);
+        ctx.beginPath(); ctx.moveTo(g.memX,14); ctx.lineTo(g.memX,H-20); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.save(); ctx.font='700 10px "JetBrains Mono",monospace'; ctx.fillStyle="#12897A";
+        ctx.textAlign="center"; ctx.fillText("cache",g.memX,H-7); ctx.restore();
+      }
+
+      for(let i=pulses.length-1;i>=0;i--){
+        const p=pulses[i]; p.t+=dt*3.4;
+        if(p.t>=1){pulses.splice(i,1);continue;}
+        ctx.strokeStyle="rgba(18,137,122,"+(0.55*(1-p.t))+")"; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.arc(g.memX,p.y,3+p.t*13,0,6.2832); ctx.stroke();
+      }
+
+      const cpu=Math.min(100,isFix?M.cpuB:M.cpuA), hot=cpu/100;
+      const bx=g.dbX,by=16,bw=g.dbW,bh=H-42;
+      ctx.fillStyle="#F1F3F9"; ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,7); ctx.fill();
+      ctx.save(); ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,7); ctx.clip();
+      const fh=bh*hot;
+      const grd=ctx.createLinearGradient(0,by+bh-fh,0,by+bh);
+      if(isFix){grd.addColorStop(0,"#7FD3C8");grd.addColorStop(1,"#12897A");}
+      else{grd.addColorStop(0,"#FF7FBF");grd.addColorStop(1,"#FF2E93");}
+      ctx.fillStyle=grd; ctx.fillRect(bx,by+bh-fh,bw,fh);
+      ctx.restore();
+      ctx.strokeStyle=flash>0?(isFix?"#12897A":"#FF2E93"):"#D8DEEC";
+      ctx.lineWidth=flash>0?2:1;
+      ctx.beginPath(); ctx.roundRect(bx+.5,by+.5,bw-1,bh-1,7); ctx.stroke();
+      flash=Math.max(0,flash-dt*4);
+
+      ctx.save();
+      ctx.font='700 13px "JetBrains Mono",monospace';
+      ctx.fillStyle=hot>0.5?"#fff":"#101528"; ctx.textAlign="center";
+      ctx.fillText(Math.round(cpu)+"%",bx+bw/2,by+bh/2-2);
+      ctx.font='400 9px "JetBrains Mono",monospace';
+      ctx.fillStyle=hot>0.5?"rgba(255,255,255,.85)":"#8B93A9";
+      ctx.fillText("replica",bx+bw/2,by+bh/2+12);
+      ctx.restore();
+
+      for(let i=parts.length-1;i>=0;i--){
+        const p=parts[i];
+        p.x+=p.v*dt;
+        if(isFix&&!p.pass&&p.x>=g.memX){pulses.push({y:p.y,t:0});parts.splice(i,1);continue;}
+        if(p.x>=bx-3){flash=1;parts.splice(i,1);continue;}
+        const passed=isFix&&p.pass&&p.x>g.memX;
+        ctx.fillStyle=(isFix&&!passed)?"#9AA3B8":(isFix?"#12897A":"#FF2E93");
+        ctx.globalAlpha=(isFix&&!p.pass)?0.75:1;
+        ctx.beginPath(); ctx.arc(p.x,p.y,2.4,0,6.2832); ctx.fill();
+        ctx.globalAlpha=1;
+      }
+    }
+    function spawn(dt){
+      const g=geo();
+      const reqSec=M.reqMin/60;
+      const shown=Math.min(reqSec,46);
+      const passRatio=M.dbMin/M.reqMin;
+      acc+=shown*dt;
+      while(acc>=1){
+        acc-=1;
+        parts.push({x:g.srcX+8,y:18+Math.random()*(H-46),v:98+Math.random()*34,pass:Math.random()<passRatio});
+      }
+    }
+    function stepStatic(){
+      const g=geo(); parts.length=0;
+      for(let i=0;i<10;i++) parts.push({x:g.srcX+18+i*((g.dbX-g.srcX-30)/10),y:H/2,v:0,pass:true});
+      draw(0);
+    }
+    resize();
+    window.addEventListener("resize",()=>{resize();if(reduce)stepStatic();});
+    return {tick(dt){if(reduce)return;if(S.running)spawn(dt);draw(dt);},stepStatic};
+  }
+
+  const laneA=Lane(el("cA"),false), laneB=Lane(el("cB"),true);
+
+  let last=performance.now();
+  function frame(now){
+    const dt=Math.min((now-last)/1000,0.05); last=now;
+    laneA.tick(dt); laneB.tick(dt);
+    requestAnimationFrame(frame);
+  }
+
+  const bind=(id,key)=>el(id).addEventListener("input",e=>{S[key]=+e.target.value;paintUI();});
+  bind("acc","acc"); bind("int","int"); bind("pg","pg"); bind("fl","fl");
+  el("toggle").addEventListener("click",e=>{
+    S.running=!S.running; e.target.textContent=S.running?"Pause":"Resume";
+  });
+  el("preset").addEventListener("click",()=>{
+    S.acc=15;S.int=0;S.pg=5;S.fl=1;
+    el("acc").value=15;el("int").value=0;el("pg").value=5;el("fl").value=1;
+    paintUI();
+  });
+
+  paintUI();
+  if(reduce){el("toggle").style.display="none";laneA.stepStatic();laneB.stepStatic();}
+  else requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
