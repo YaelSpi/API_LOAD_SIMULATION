@@ -170,11 +170,11 @@
 <body>
 <div class="wrap">
 
-  <p class="eyebrow">Public API · Load simulation</p>
+  <p class="eyebrow">Yael Spiegler · Public API · Load simulation</p>
   <h1>Identical traffic in. <em>Two very different loads.</em></h1>
   <p class="deck">
     Today every incoming request reaches a SQL replica, so the load is set by the customer.
-    With a <b>dwell floor</b>, each cache key refreshes at most once per 10 seconds, which means
+    With a <b>dwell floor</b>, each cache key refreshes at most once per 10 minutes, which means
     <b>the number of queries becomes a ceiling we choose rather than a forecast of customer behavior.</b>
     Drag the polling interval and watch which side moves.
   </p>
@@ -193,7 +193,7 @@
       <input type="range" id="pg" min="1" max="10" value="5">
     </div>
     <div class="ctl">
-      <label for="fl">Dwell floor <span id="flV">10s</span></label>
+      <label for="fl">Dwell floor <span id="flV">10min</span></label>
       <input type="range" id="fl" min="0" max="2" value="1">
     </div>
     <div class="btns">
@@ -221,7 +221,7 @@
       <div class="lane-head">
         <p class="lane-tag">With a dwell floor</p>
         <h2>A shared cache that caps the rate</h2>
-        <p>Keyed on change version, and no query before 10 seconds have passed</p>
+        <p>Keyed on architectural shift, where new queries reach the DB only after 10 minutes have passed</p>
       </div>
       <canvas id="cB" aria-label="Simulation: the cache absorbs most requests and only a few reach the replica"></canvas>
       <div class="metrics">
@@ -240,19 +240,6 @@
     </p>
   </div>
 
-  <h3>No account looks guilty</h3>
-  <p class="sub">
-    This is the signature of the June 24 incident: the replica saturates, every account is individually
-    inside policy, and there is nobody to identify. A per-account limit cannot solve that. A floor can.
-  </p>
-  <div class="panel strip">
-    <div class="bars" id="bars"><div class="limit" id="limit" style="bottom:70%"><span>700 allowed</span></div></div>
-    <div class="strip-foot">
-      <span>Per account: <b id="perAcc">600</b> requests per minute</span>
-      <span>Total: <b id="total">9,000</b> requests per minute against shared replicas</span>
-    </div>
-  </div>
-
   <h3>What changes, and when</h3>
   <p class="sub">The first two waves are API-layer changes only. No new datastore, no customer-side change, and no pricing decision.</p>
   <div class="tl">
@@ -260,7 +247,7 @@
       <div class="node node--before">
         <div class="dot"></div>
         <h4>Before</h4>
-        <p><b>700/min for every account</b>Increases granted by support for free with no expiry. Enforcement only by hand, mid-incident.</p>
+        <p><b>Fixed limit/min for every account</b>Enforcement only by hand, mid-incident.</p>
       </div>
       <div class="node">
         <div class="dot"></div>
@@ -270,7 +257,7 @@
       <div class="node node--key">
         <div class="dot"></div>
         <h4>Wave 1 · weeks</h4>
-        <p><b>10-second dwell floor</b>Change-version keys, single-flight at invalidation, and a global bulkhead on the replica as a safety net.</p>
+        <p><b>10-minute dwell floor</b>Change-version keys, single-flight at invalidation, and a global bulkhead on the replica as a safety net.</p>
       </div>
       <div class="node">
         <div class="dot"></div>
@@ -285,21 +272,13 @@
     </div>
   </div>
 
-  <p class="foot">
-    <b>How the numbers are derived.</b> Requests and queries are arithmetic: a full pull of alerts and tickets,
-    <code id="fPages">5</code> pages each, at the selected interval. Under the floor, every cache key refreshes at most
-    <code id="fRef">6</code> times per minute, which leaves page count as the only remaining multiplier.
-    CPU demand is illustrative, at <code>50ms CPU</code> per heavy query on <code>8 vCPU</code>. The calibration was
-    chosen so the default lands on the 96% measured during the June 24 incident. Real values can be extracted
-    from a replay over one week of logs, without touching production.
-  </p>
 </div>
 
 <script>
 (function(){
   "use strict";
   const INTERVALS=[1,2,5,10,30], INT_LABELS=["every 1s","every 2s","every 5s","every 10s","every 30s"];
-  const FLOORS=[5,10,30], FLOOR_LABELS=["5s","10s","30s"];
+  const FLOORS=[60,600,900], FLOOR_LABELS=["1min","10min","15min"];
   const ENDPOINTS=2, CPU_MS=50, CAP_MS=8000;
   const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -334,10 +313,6 @@
     el("dbB").textContent=nf(M.dbMin);
     el("cpuA").textContent=pf(M.cpuA);
     el("cpuB").textContent=pf(M.cpuB);
-    el("perAcc").textContent=nf(M.perAcc);
-    el("total").textContent=nf(M.reqMin);
-    el("fPages").textContent=S.pg;
-    el("fRef").textContent=Math.round(60/M.floor);
 
     const factor=M.reqMin/M.dbMin;
     el("factor").textContent=(factor>=10?Math.round(factor):factor.toFixed(1))+"x";
@@ -345,15 +320,6 @@
       ? "<b>The floor is inactive at this setting.</b> Polling is slower than the floor, so there is nothing to hold back. That is the point: a floor touches dense polling only, never ordinary use."
       : "<b>The incoming traffic is identical on both sides.</b> The only difference is what reaches the database. Polling interval moves the left side and never touches the right, as long as it is denser than the floor.";
 
-    const bars=el("bars"), limit=el("limit");
-    while(bars.children.length-1<S.acc) bars.appendChild(Object.assign(document.createElement("div"),{className:"bar"}));
-    while(bars.children.length-1>S.acc) bars.removeChild(bars.lastChild);
-    const peak=Math.max(700,M.perAcc)*1.12;
-    limit.style.bottom=(700/peak*100)+"%";
-    for(let i=1;i<bars.children.length;i++){
-      const jitter=0.82+0.18*((Math.sin(i*12.9898)*43758.5453)%1+1)/2;
-      bars.children[i].style.height=Math.min(100,(M.perAcc*jitter/peak)*100)+"%";
-    }
   }
 
   if(!CanvasRenderingContext2D.prototype.roundRect){
